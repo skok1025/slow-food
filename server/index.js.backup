@@ -1,0 +1,259 @@
+import 'dotenv/config';
+import express from 'express';
+import mysql from 'mysql2/promise';
+import cors from 'cors';
+import crypto from 'crypto';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import OpenAI from 'openai';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configure multer for image uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/');
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: function (req, file, cb) {
+        const filetypes = /jpeg|jpg|png|gif|webp/;
+        const mimetype = filetypes.test(file.mimetype);
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+
+        if (mimetype && extname) {
+            return cb(null, true);
+        }
+        cb(new Error('이미지 파일만 업로드 가능합니다.'));
+    }
+});
+
+// Initialize OpenAI (will use OPENAI_API_KEY from environment)
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || ''
+});
+
+const app = express();
+const port = 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// Serve uploaded images
+app.use('/uploads', express.static('uploads'));
+
+// Database connection pool
+const pool = mysql.createPool({
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || 'root',
+    database: process.env.DB_NAME || 'shkim30',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+});
+
+app.post('/api/login', async (req, res) => {
+    const { member_id, password } = req.body;
+
+    if (!member_id || !password) {
+        return res.status(400).json({ success: false, message: '아이디와 비밀번호를 입력해주세요.' });
+    }
+
+    try {
+        // Mock bypass for prototype
+        if (member_id === 'test' && password === 'test') {
+            return res.json({
+                success: true,
+                user: { name: '테스트유저', member_id: 'test', is_admin: false }
+            });
+        }
+
+        // Fetch user by ID first
+        const [rows] = await pool.execute(
+            'SELECT * FROM t_member WHERE member_id = ?',
+            [member_id]
+        );
+
+        if (rows.length > 0) {
+            const user = rows[0];
+            const storedPassword = user.password;
+
+            // Calculate hash
+            const hashedPasswordHex = crypto.createHash('sha512').update(password).digest('hex');
+            const hashedPasswordBuffer = Buffer.from(hashedPasswordHex, 'hex');
+
+            let isMatch = false;
+
+            // Case 1: DB stores Raw Binary (Buffer comparison)
+            if (Buffer.isBuffer(storedPassword) && storedPassword.equals(hashedPasswordBuffer)) {
+                isMatch = true;
+            }
+            // Case 2: DB stores Hex String (as Buffer or String)
+            else {
+                const storedPasswordStr = storedPassword.toString();
+                if (storedPasswordStr.toLowerCase() === hashedPasswordHex.toLowerCase()) {
+                    isMatch = true;
+                }
+            }
+
+            if (isMatch) {
+                let name = 'Unknown';
+                try {
+                    if (user.name) {
+                        // Decrypt AES-128-ECB
+                        const key = Buffer.from('abcdefghijklmnop', 'utf8');
+                        const encryptedBase64 = user.name.toString();
+
+                        const decipher = crypto.createDecipheriv('aes-128-ecb', key, null);
+                        decipher.setAutoPadding(true);
+
+                        let decrypted = decipher.update(encryptedBase64, 'base64', 'utf8');
+                        decrypted += decipher.final('utf8');
+                        name = decrypted;
+                    }
+                } catch (err) {
+                    console.error('Decryption failed:', err);
+                    name = user.name ? user.name.toString() : 'Unknown';
+                }
+
+                res.json({
+                    success: true,
+                    user: {
+                        member_id: user.member_id,
+                        name: name,
+                        is_admin: user.is_admin === '1' || user.is_admin === 1
+                    }
+                });
+            } else {
+                res.status(401).json({ success: false, message: '비밀번호가 일치하지 않습니다.' });
+            }
+        } else {
+            res.status(401).json({ success: false, message: '존재하지 않는 아이디입니다.' });
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+    }
+});
+
+app.post('/api/signup', async (req, res) => {
+    const { member_id, password, name, tel } = req.body;
+
+    if (!member_id || !password || !name || !tel) {
+        return res.status(400).json({ success: false, message: '모든 필드를 입력해주세요.' });
+    }
+
+    try {
+        const [existing] = await pool.execute('SELECT member_id FROM t_member WHERE member_id = ?', [member_id]);
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: '이미 존재하는 아이디입니다.' });
+        }
+
+        const hashedPasswordHex = crypto.createHash('sha512').update(password).digest('hex');
+
+        const key = Buffer.from('abcdefghijklmnop', 'utf8');
+        const cipher = crypto.createCipheriv('aes-128-ecb', key, null);
+        cipher.setAutoPadding(true);
+        let encryptedName = cipher.update(name, 'utf8', 'base64');
+        encryptedName += cipher.final('base64');
+
+        await pool.execute(
+            'INSERT INTO t_member (member_id, password, name, tel, is_delete) VALUES (?, ?, ?, ?, "F")',
+            [member_id, hashedPasswordHex, encryptedName, tel]
+        );
+
+        res.json({ success: true });
+
+    } catch (error) {
+        console.error('Signup error:', error);
+        res.status(500).json({ success: false, message: '회원가입 중 오류가 발생했습니다.' });
+    }
+});
+
+// Get all recipes
+app.get('/api/recipes', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM t_recipe ORDER BY created_at DESC');
+        const recipes = rows.map(row => ({
+            id: row.id,
+            title: row.title,
+            description: row.description,
+            ingredientId: row.ingredient_id,
+            time: row.time,
+            difficulty: row.difficulty,
+            image: row.image
+        }));
+        res.json(recipes);
+    } catch (error) {
+        console.error('Fetch recipes error:', error);
+        res.status(500).json({ message: '레시피를 불러오는 중 오류가 발생했습니다.' });
+    }
+});
+
+// Add new recipe with image upload
+app.post('/api/recipes', upload.single('image'), async (req, res) => {
+    const { title, description, ingredientId, time, difficulty } = req.body;
+    const image = req.file ? `/uploads/${req.file.filename}` : '';
+
+    if (!title || !description || !ingredientId) {
+        return res.status(400).json({ success: false, message: '필수 항목을 입력해주세요.' });
+    }
+
+    try {
+        const [result] = await pool.execute(
+            'INSERT INTO t_recipe (title, description, ingredient_id, time, difficulty, image) VALUES (?, ?, ?, ?, ?, ?)',
+            [title, description, ingredientId, time, difficulty, image]
+        );
+
+        res.json({
+            success: true,
+            recipe: {
+                id: result.insertId,
+                title,
+                description,
+                ingredientId,
+                time,
+                difficulty,
+                image
+                description: recipeData.description,
+                time: recipeData.time,
+                difficulty: recipeData.difficulty
+            }
+        });
+    } catch (error) {
+        console.error('AI generation error:', error);
+        res.status(500).json({ success: false, message: 'AI 레시피 생성 중 오류가 발생했습니다.' });
+    }
+});
+
+app.listen(port, async () => {
+    console.log(`Server running at http://localhost:${port}`);
+
+    try {
+        await pool.execute(`
+            CREATE TABLE IF NOT EXISTS t_recipe (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(100) NOT NULL,
+                description TEXT,
+                ingredient_id VARCHAR(50),
+                time VARCHAR(50),
+                difficulty VARCHAR(20),
+                image VARCHAR(255),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('t_recipe table verified/created');
+    } catch (err) {
+        console.error('Table creation failed:', err);
+    }
+});
