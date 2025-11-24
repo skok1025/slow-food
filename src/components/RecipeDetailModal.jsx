@@ -409,6 +409,28 @@ const RecipeDetailModal = ({ isOpen, onClose, recipeId, user, onRecipeUpdated, o
                                     </span>
                                 </div>
 
+                                {recipe.ingredients && recipe.ingredients.length > 0 && (
+                                    <div style={{ marginBottom: '1.5rem' }}>
+                                        <h4 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>사용된 식재료</h4>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                            {recipe.ingredients.map(ing => (
+                                                <span key={ing.id} style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.25rem',
+                                                    padding: '0.25rem 0.75rem',
+                                                    backgroundColor: '#f0f0f0',
+                                                    borderRadius: '1rem',
+                                                    fontSize: '0.9rem'
+                                                }}>
+                                                    <span>{ing.icon}</span>
+                                                    <span>{ing.name}</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div style={{
                                     whiteSpace: 'pre-wrap',
                                     lineHeight: '1.8',
