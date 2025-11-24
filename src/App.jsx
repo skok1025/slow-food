@@ -14,7 +14,7 @@ import { API_BASE_URL } from './config';
 function App() {
   const [recipes, setRecipes] = useState([]);
   const [ingredients, setIngredients] = useState([]);
-  const [selectedIngredient, setSelectedIngredient] = useState(null);
+  const [selectedIngredients, setSelectedIngredients] = useState([]);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -94,8 +94,11 @@ function App() {
 
   const filteredRecipes = recipes.filter(recipe => {
     // 1. Filter by ingredient
-    if (selectedIngredient && (!recipe.ingredients || !recipe.ingredients.some(ing => ing.id === selectedIngredient))) {
-      return false;
+    if (selectedIngredients.length > 0) {
+      const hasAllIngredients = selectedIngredients.every(selectedId =>
+        recipe.ingredients && recipe.ingredients.some(ing => ing.id === selectedId)
+      );
+      if (!hasAllIngredients) return false;
     }
     // 2. Filter by favorites if in favorite view mode
     if (viewMode === 'favorites' && !favoriteRecipeIds.includes(recipe.id)) {
@@ -161,6 +164,20 @@ function App() {
     }
   };
 
+  const handleIngredientSelect = (id) => {
+    if (id === null) {
+      setSelectedIngredients([]);
+    } else {
+      setSelectedIngredients(prev => {
+        if (prev.includes(id)) {
+          return prev.filter(item => item !== id);
+        } else {
+          return [...prev, id];
+        }
+      });
+    }
+  };
+
   return (
     <Layout
       onLoginClick={() => setIsLoginOpen(true)}
@@ -218,8 +235,8 @@ function App() {
 
       <IngredientFilter
         ingredients={ingredients}
-        selectedIngredient={selectedIngredient}
-        onSelect={setSelectedIngredient}
+        selectedIngredients={selectedIngredients}
+        onSelect={handleIngredientSelect}
         user={user}
         onAddRecipeClick={() => setIsUploadOpen(true)}
         onManageIngredientsClick={() => setIsIngredientManageOpen(true)}
