@@ -217,18 +217,16 @@ function App() {
       <IngredientManageModal
         isOpen={isIngredientManageOpen}
         onClose={() => setIsIngredientManageOpen(false)}
-        onSuccess={() => {
-          // Reload ingredients
+        onUpdate={() => {
+          // Reload ingredients without closing modal
           fetch(`${API_BASE_URL}/api/ingredients`)
             .then(res => res.json())
             .then(data => {
               if (Array.isArray(data)) {
                 setIngredients(data);
-                alert('식재료가 추가되었습니다.');
               }
             })
             .catch(err => console.error('Failed to reload ingredients:', err));
-          setIsIngredientManageOpen(false);
         }}
       />
       <HeroCarousel />
