@@ -61,6 +61,28 @@ const RecipeUploadModal = ({ isOpen, onClose, onUploadSuccess, ingredients }) =>
             const data = await response.json();
 
             if (data.success) {
+                const aiIngredients = data.recipe.ingredients || [];
+                const matchedIngredientIds = [];
+
+                if (ingredients && ingredients.length > 0) {
+                    aiIngredients.forEach(aiIngName => {
+                        // Find matching ingredient in our list (fuzzy match or exact match)
+                        // Simple exact/partial match for now
+                        const match = ingredients.find(ing =>
+                            ing.name === aiIngName ||
+                            aiIngName.includes(ing.name) ||
+                            ing.name.includes(aiIngName)
+                        );
+                        if (match) {
+                            matchedIngredientIds.push(match.id);
+                        }
+                    });
+                }
+
+                // Remove duplicates
+                const uniqueMatchedIds = [...new Set(matchedIngredientIds)];
+                setSelectedIngredients(uniqueMatchedIds);
+
                 setFormData({
                     ...formData,
                     shortDescription: data.recipe.shortDescription,

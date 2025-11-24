@@ -492,17 +492,27 @@ app.post('/api/recipes/generate-ai', authenticateToken, async (req, res) => {
     }
 
     try {
+        // Fetch all available ingredients to provide context to AI
+        const [ingredients] = await pool.query('SELECT name FROM t_ingredient');
+        const ingredientList = ingredients.map(i => i.name).join(', ');
+
         console.log('Calling OpenAI API...');
         const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
                 {
                     role: "system",
-                    content: "당신은 전문 요리사입니다. 사용자가 입력한 레시피 제목을 보고 그에 맞는 상세한 레시피를 한국어로 작성해주세요. 응답은 JSON 형식으로 해주세요: {\"shortDescription\": \"한 줄 짧은 설명 (50자 이내)\", \"recipe\": \"상세 레시피 (재료 목록과 조리 방법을 단계별로 상세히 포함)\", \"time\": \"조리 시간 (예: 30분)\", \"difficulty\": \"쉬움/보통/어려움\"}"
+                    content: `당신은 전문 요리사입니다. 사용자가 입력한 레시피 제목을 보고 그에 맞는 상세한 레시피를 한국어로 작성해주세요. 
+                    
+                    현재 사용 가능한 재료 목록: ${ingredientList}
+                    
+                    가능하다면 위 목록에 있는 재료 이름을 우선적으로 사용하여 'ingredients' 배열을 구성해주세요.
+                    
+                    응답은 JSON 형식으로 해주세요: {"shortDescription": "한 줄 짧은 설명 (50자 이내)", "recipe": "상세 레시피 (재료 목록과 조리 방법을 단계별로 상세히 포함)", "time": "조리 시간 (예: 30분)", "difficulty": "쉬움/보통/어려움", "ingredients": ["재료명1", "재료명2", ...]}`
                 },
                 {
                     role: "user",
-                    content: `"${title}" 레시피를 작성해주세요. 짧은 설명과 상세한 레시피를 알려주세요.`
+                    content: `"${title}" 레시피를 작성해주세요. 짧은 설명과 상세한 레시피, 그리고 사용된 주재료 목록을 알려주세요.`
                 }
             ],
             temperature: 0.7,
@@ -519,7 +529,8 @@ app.post('/api/recipes/generate-ai', authenticateToken, async (req, res) => {
                 shortDescription: recipeData.shortDescription,
                 recipe: recipeData.recipe,
                 time: recipeData.time,
-                difficulty: recipeData.difficulty
+                difficulty: recipeData.difficulty,
+                ingredients: recipeData.ingredients || []
             }
         });
     } catch (error) {
