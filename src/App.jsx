@@ -70,6 +70,17 @@ function App() {
       const response = await fetch(`${API_BASE_URL}/api/users/favorites`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      if (response.status === 401) {
+        // Token expired or invalid
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+        setFavoriteRecipeIds([]);
+        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
+        return;
+      }
+
       const data = await response.json();
       if (data.success) {
         setFavoriteRecipeIds(data.favorites);
