@@ -102,6 +102,7 @@ const RecipeDetailModal = ({ isOpen, onClose, recipeId, user, onRecipeUpdated, o
     };
 
     const handleSave = async () => {
+        console.log('handleSave started');
         setIsLoading(true);
         try {
             const token = localStorage.getItem('token');
@@ -117,6 +118,7 @@ const RecipeDetailModal = ({ isOpen, onClose, recipeId, user, onRecipeUpdated, o
                 formDataToSend.append('image', imageFile);
             }
 
+            console.log('Sending PUT request...');
             const response = await fetch(`${API_BASE_URL}/api/recipes/${recipeId}`, {
                 method: 'PUT',
                 headers: {
@@ -124,20 +126,26 @@ const RecipeDetailModal = ({ isOpen, onClose, recipeId, user, onRecipeUpdated, o
                 },
                 body: formDataToSend,
             });
+            console.log('Response status:', response.status);
 
             const data = await response.json();
+            console.log('Response data:', data);
 
             if (data.success) {
+                console.log('Update successful, updating state...');
                 setRecipe(data.recipe);
                 setIsEditMode(false);
                 setImageFile(null);
+                console.log('Calling onRecipeUpdated...');
                 onRecipeUpdated(data.recipe);
+                console.log('onRecipeUpdated done');
                 alert('레시피가 수정되었습니다.');
             } else {
+                console.warn('Update failed:', data.message);
                 alert(data.message || '레시피 수정에 실패했습니다.');
             }
         } catch (error) {
-            console.error('Update recipe error:', error);
+            console.error('Update recipe error details:', error);
             alert('레시피 수정 중 오류가 발생했습니다.');
         } finally {
             setIsLoading(false);

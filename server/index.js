@@ -289,6 +289,10 @@ app.get('/api/recipes', async (req, res) => {
 // Update recipe (admin only)
 app.put('/api/recipes/:id', authenticateToken, upload.single('image'), async (req, res) => {
     const { id } = req.params;
+    console.log(`[PUT] /api/recipes/${id} - Request received`);
+    console.log('Body:', req.body);
+    console.log('File:', req.file);
+
     const { title, shortDescription, recipe, ingredientIds, time, difficulty } = req.body;
 
     // Check if user is admin
@@ -312,10 +316,11 @@ app.put('/api/recipes/:id', authenticateToken, upload.single('image'), async (re
         const image = req.file ? `/uploads/${req.file.filename}` : existing[0].image;
 
         // Update recipe
-        await pool.execute(
+        const [updateResult] = await pool.execute(
             'UPDATE t_recipe SET title = ?, short_description = ?, recipe = ?, time = ?, difficulty = ?, image = ? WHERE id = ?',
             [title, shortDescription, recipe, time, difficulty, image, id]
         );
+        console.log('Update result:', updateResult);
 
         // Update ingredients - delete old and insert new
         await pool.execute('DELETE FROM t_recipe_ingredient WHERE recipe_id = ?', [id]);
@@ -340,7 +345,7 @@ app.put('/api/recipes/:id', authenticateToken, upload.single('image'), async (re
             WHERE ri.recipe_id = ?
         `, [id]);
 
-        res.json({
+        const responseData = {
             success: true,
             recipe: {
                 id,
@@ -352,10 +357,13 @@ app.put('/api/recipes/:id', authenticateToken, upload.single('image'), async (re
                 difficulty,
                 image
             }
-        });
+        };
+
+        console.log('Sending response:', JSON.stringify(responseData, null, 2));
+        res.json(responseData);
     } catch (error) {
         console.error('Update recipe error:', error);
-        res.status(500).json({ success: false, message: '레시피 수정 중 오류가 발생했습니다.' });
+        res.status(500).json({ success: false, message: '레시피 수정 중 오류가 발생했습니다.', error: error.message });
     }
 });
 
@@ -564,10 +572,11 @@ app.use((err, req, res, next) => {
     }
 
     if (err) {
-        console.error('Global error:', err);
+        console.error('Global error handler caught:', err);
         return res.status(500).json({
             success: false,
-            message: '서버 내부 오류가 발생했습니다.'
+            message: '서버 내부 오류가 발생했습니다.',
+            error: err.message // Include error message for debugging
         });
     }
 
