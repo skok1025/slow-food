@@ -47,7 +47,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit
     fileFilter: function (req, file, cb) {
         const filetypes = /jpeg|jpg|png|gif|webp/;
         const mimetype = filetypes.test(file.mimetype);
@@ -562,7 +562,7 @@ app.use((err, req, res, next) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
                 success: false,
-                message: '파일 크기가 너무 큽니다. (최대 10MB)'
+                message: '파일 크기가 너무 큽니다. (최대 20MB)'
             });
         }
         return res.status(400).json({
