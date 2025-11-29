@@ -47,7 +47,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
     fileFilter: function (req, file, cb) {
         const filetypes = /jpeg|jpg|png|gif|webp/;
         const mimetype = filetypes.test(file.mimetype);
@@ -546,6 +546,32 @@ app.post('/api/recipes/generate-ai', authenticateToken, async (req, res) => {
             error: error.message
         });
     }
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+                success: false,
+                message: '파일 크기가 너무 큽니다. (최대 10MB)'
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            message: `파일 업로드 오류: ${err.message}`
+        });
+    }
+
+    if (err) {
+        console.error('Global error:', err);
+        return res.status(500).json({
+            success: false,
+            message: '서버 내부 오류가 발생했습니다.'
+        });
+    }
+
+    next();
 });
 
 app.listen(port, async () => {
