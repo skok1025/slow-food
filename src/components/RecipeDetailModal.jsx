@@ -146,7 +146,7 @@ const RecipeDetailModal = ({ isOpen, onClose, recipeId, user, onRecipeUpdated, o
             }
         } catch (error) {
             console.error('Update recipe error details:', error);
-            alert('레시피 수정 중 오류가 발생했습니다.');
+            alert('레시피 수정 중 오류가 발생했습니다.' + error.message);
         } finally {
             setIsLoading(false);
         }
