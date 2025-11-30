@@ -28,6 +28,8 @@ const HeroCarousel = () => {
         return () => clearInterval(interval);
     }, []);
 
+    return null;
+
     return (
         <div className="hero-carousel">
             {images.map((image, index) => (

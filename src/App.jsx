@@ -103,6 +103,8 @@ function App() {
     }
   }, []);
 
+  const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
+
   const filteredRecipes = recipes.filter(recipe => {
     // 1. Filter by ingredient
     if (selectedIngredients.length > 0) {
@@ -114,6 +116,13 @@ function App() {
     // 2. Filter by favorites if in favorite view mode
     if (viewMode === 'favorites' && !favoriteRecipeIds.includes(recipe.id)) {
       return false;
+    }
+    // 3. Filter by search term
+    if (recipeSearchTerm) {
+      const term = recipeSearchTerm.toLowerCase();
+      const titleMatch = recipe.title.toLowerCase().includes(term);
+      const descMatch = recipe.description && recipe.description.toLowerCase().includes(term);
+      if (!titleMatch && !descMatch) return false;
     }
     return true;
   });
@@ -263,6 +272,24 @@ function App() {
         isFavorite={favoriteRecipeIds.includes(selectedRecipeId)}
         onToggleFavorite={() => handleToggleFavorite(selectedRecipeId)}
       />
+
+      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
+        <input
+          type="text"
+          placeholder="🍳 레시피 검색 (제목, 설명)"
+          value={recipeSearchTerm}
+          onChange={(e) => setRecipeSearchTerm(e.target.value)}
+          style={{
+            padding: '0.75rem 1.5rem',
+            borderRadius: '2rem',
+            border: '1px solid #ddd',
+            width: '300px',
+            fontSize: '1rem',
+            backgroundColor: '#fff',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+          }}
+        />
+      </div>
 
       <RecipeList
         recipes={filteredRecipes}
